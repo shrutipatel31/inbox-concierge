@@ -31,15 +31,17 @@ export default async function InboxPage() {
         </form>
       </header>
 
-      <section className="flex flex-1 items-center justify-center px-6">
+      <section className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
         <p className="text-sm text-zinc-500">
-          {/* Temporary M1 verification: confirms the Gmail token reached the
-              session so M2's Gmail fetch has what it needs. Remove in M2. */}
-          Gmail access token present:{" "}
-          <span className="font-mono">
-            {String(Boolean(session.accessToken))}
-          </span>
+          Bucketed inbox UI arrives in a later milestone.
         </p>
+        {/* M2 verification: raw threads JSON straight from the API route. */}
+        <a
+          href="/api/threads"
+          className="text-sm font-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
+        >
+          View raw threads JSON →
+        </a>
       </section>
     </main>
   );
