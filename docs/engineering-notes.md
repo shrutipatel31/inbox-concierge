@@ -104,6 +104,17 @@ direction chosen for each, and why. Useful as a reference and for the walkthroug
   server-cached classifications by default and only re-runs on `?rerun=1` (Refresh,
   Add-bucket) — instant reloads, no wasted API calls.
 - **Serverless caveat (Vercel).** The in-memory cache is per-instance, so `/api/threads`
-  and `/api/classify` can land on different instances and miss the cache. This is the
-  documented in-memory-vs-DB trade-off; recommendation is to record the demo on
-  `localhost` (single process) and name the trade-off on camera.
+  and `/api/classify` can land on different instances and miss the cache. Mitigated by
+  making `/api/classify` self-sufficient — it fetches threads itself on a cache miss
+  (using the session token), so a single call works regardless of instance. Cached
+  *classifications* still don't persist across instances (a cold instance re-runs the
+  pipeline); that remains the in-memory-vs-DB trade-off to name on camera.
+
+- **Refresh is a manual pull, by design.** The real-time answer is Gmail push
+  (`users.watch` → Google Cloud Pub/Sub), but it's out of scope here and can't be demoed
+  on localhost: it needs a public HTTPS webhook (deployed), a Pub/Sub topic + IAM,
+  `users.watch` renewal every 7 days (a cron), and `history.list` on each delta — which
+  means persisting the last `historyId` in a DB. Since this build deliberately has no DB
+  and runs locally, we kept the manual Refresh button and treat pub/sub as a
+  productionization talking point: replace the pull with push for real-time, incremental
+  sync instead of re-fetching ~200 threads.
