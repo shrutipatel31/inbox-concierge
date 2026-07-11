@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getCachedThreads, cacheClassifications } from "@/lib/cache";
+import { getCachedThreads, getBuckets, cacheClassifications } from "@/lib/cache";
 import { classifyThreads } from "@/lib/pipeline";
-import { DEFAULT_BUCKETS } from "@/lib/buckets";
 
 /**
  * GET /api/classify
@@ -25,12 +24,10 @@ export async function GET() {
   }
 
   try {
-    const { classifications, stats } = await classifyThreads(
-      threads,
-      DEFAULT_BUCKETS,
-    );
-    cacheClassifications(session.user.email, DEFAULT_BUCKETS, classifications);
-    return NextResponse.json({ stats, classifications });
+    const buckets = getBuckets(session.user.email);
+    const { classifications, stats } = await classifyThreads(threads, buckets);
+    cacheClassifications(session.user.email, classifications);
+    return NextResponse.json({ stats, classifications, buckets });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Classification failed";

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_BUCKETS } from "@/lib/buckets";
+import { DEFAULT_BUCKETS, type Bucket } from "@/lib/buckets";
 import type { Thread, Classification } from "@/lib/types";
 import type { PipelineStats } from "@/lib/pipeline";
 import { BucketColumn } from "./BucketColumn";
+import { AddBucketModal } from "./AddBucketModal";
 
 type LoadState = "loading" | "ready" | "error";
 const UNCLASSIFIED = "Unclassified";
@@ -16,6 +17,7 @@ interface ThreadsResponse {
 interface ClassifyResponse {
   classifications: Classification[];
   stats: PipelineStats;
+  buckets: Bucket[];
   error?: string;
 }
 
@@ -23,28 +25,37 @@ export function InboxClient() {
   const [state, setState] = useState<LoadState>("loading");
   const [threads, setThreads] = useState<Thread[]>([]);
   const [classifications, setClassifications] = useState<Classification[]>([]);
+  const [buckets, setBuckets] = useState<Bucket[]>(DEFAULT_BUCKETS);
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [error, setError] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const load = useCallback(async (refresh = false) => {
-    try {
-      const tRes = await fetch(`/api/threads${refresh ? "?refresh=1" : ""}`);
-      const tData: ThreadsResponse = await tRes.json();
-      if (!tRes.ok) throw new Error(tData.error ?? "Failed to load threads");
-
-      const cRes = await fetch("/api/classify");
-      const cData: ClassifyResponse = await cRes.json();
-      if (!cRes.ok) throw new Error(cData.error ?? "Failed to classify");
-
-      setThreads(tData.threads);
-      setClassifications(cData.classifications);
-      setStats(cData.stats);
-      setState("ready");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-      setState("error");
-    }
+  // Run the pipeline over already-cached threads (no Gmail re-fetch).
+  const classify = useCallback(async () => {
+    const cRes = await fetch("/api/classify");
+    const cData: ClassifyResponse = await cRes.json();
+    if (!cRes.ok) throw new Error(cData.error ?? "Failed to classify");
+    setClassifications(cData.classifications);
+    setStats(cData.stats);
+    setBuckets(cData.buckets);
+    setState("ready");
   }, []);
+
+  const load = useCallback(
+    async (refresh = false) => {
+      try {
+        const tRes = await fetch(`/api/threads${refresh ? "?refresh=1" : ""}`);
+        const tData: ThreadsResponse = await tRes.json();
+        if (!tRes.ok) throw new Error(tData.error ?? "Failed to load threads");
+        setThreads(tData.threads);
+        await classify();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Something went wrong");
+        setState("error");
+      }
+    },
+    [classify],
+  );
 
   useEffect(() => {
     // Intentional on-mount data fetch (React's sanctioned effect use case);
@@ -65,6 +76,18 @@ export function InboxClient() {
     load();
   };
 
+  // A new bucket is already saved server-side; re-run classification over the
+  // cached threads with the updated bucket set.
+  const onBucketAdded = (updated: Bucket[]) => {
+    setBuckets(updated);
+    setModalOpen(false);
+    setState("loading");
+    classify().catch((e) => {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setState("error");
+    });
+  };
+
   // Group threads by their classified bucket.
   const bucketOf = new Map(classifications.map((c) => [c.threadId, c.bucket]));
   const grouped = new Map<string, Thread[]>();
@@ -83,6 +106,7 @@ export function InboxClient() {
         count={threads.length}
         stats={stats}
         onRefresh={refresh}
+        onAddBucket={() => setModalOpen(true)}
       />
 
       {state === "error" ? (
@@ -90,9 +114,9 @@ export function InboxClient() {
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4">
           {state === "loading"
-            ? DEFAULT_BUCKETS.map((b) => <SkeletonColumn key={b.name} name={b.name} />)
+            ? buckets.map((b) => <SkeletonColumn key={b.name} name={b.name} />)
             : [
-                ...DEFAULT_BUCKETS.map((b) => (
+                ...buckets.map((b) => (
                   <BucketColumn
                     key={b.name}
                     name={b.name}
@@ -109,6 +133,13 @@ export function InboxClient() {
               ]}
         </div>
       )}
+
+      {modalOpen && (
+        <AddBucketModal
+          onClose={() => setModalOpen(false)}
+          onAdded={onBucketAdded}
+        />
+      )}
     </div>
   );
 }
@@ -118,11 +149,13 @@ function Toolbar({
   count,
   stats,
   onRefresh,
+  onAddBucket,
 }: {
   state: LoadState;
   count: number;
   stats: PipelineStats | null;
   onRefresh: () => void;
+  onAddBucket: () => void;
 }) {
   return (
     <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2.5">
@@ -135,14 +168,24 @@ function Toolbar({
           ).toFixed(1)}s${stats.escalatedThreads > 0 ? ` · ${stats.escalatedThreads} escalated` : ""}`}
         {state === "error" && "Couldn't load your inbox"}
       </p>
-      <button
-        type="button"
-        onClick={onRefresh}
-        disabled={state === "loading"}
-        className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50"
-      >
-        {state === "loading" ? "Refreshing…" : "Refresh"}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onAddBucket}
+          disabled={state !== "ready"}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50"
+        >
+          Add bucket
+        </button>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={state === "loading"}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50"
+        >
+          {state === "loading" ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
     </div>
   );
 }

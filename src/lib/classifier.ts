@@ -129,3 +129,17 @@ export async function classifyBatch(
     cachedTokens: response.usageMetadata?.cachedContentTokenCount ?? 0,
   };
 }
+
+/**
+ * Turn a bare bucket name into a one-line description for the classifier prompt
+ * (used when the user adds a custom bucket without one). Kept short and plain.
+ */
+export async function generateBucketDescription(name: string): Promise<string> {
+  const ai = getClient();
+  const response = await ai.models.generateContent({
+    model: DEFAULT_MODEL,
+    config: { temperature: 0.2 },
+    contents: `You are naming email-inbox buckets. In one sentence (max ~20 words), describe what kinds of emails belong in a bucket called "${name}". Reply with only the description, no label or quotes.`,
+  });
+  return (response.text ?? "").trim();
+}

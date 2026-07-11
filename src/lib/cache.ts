@@ -1,5 +1,5 @@
 import type { Thread, Classification } from "./types";
-import type { Bucket } from "./buckets";
+import { DEFAULT_BUCKETS, type Bucket } from "./buckets";
 
 /**
  * In-memory, per-session cache (spec §7). Keyed by the signed-in user's email.
@@ -45,16 +45,27 @@ export function cacheThreads(key: string, threads: Thread[]): void {
 
 export function cacheClassifications(
   key: string,
-  buckets: Bucket[],
   classifications: Classification[],
 ): void {
-  const data = ensure(key);
-  data.buckets = buckets;
-  data.classifications = classifications;
+  ensure(key).classifications = classifications;
 }
 
 export function getCachedClassifications(
   key: string,
 ): Classification[] | undefined {
   return store.get(key)?.classifications;
+}
+
+/** Current bucket set for the session, seeded from defaults on first use. */
+export function getBuckets(key: string): Bucket[] {
+  const data = ensure(key);
+  if (data.buckets.length === 0) data.buckets = [...DEFAULT_BUCKETS];
+  return data.buckets;
+}
+
+/** Append a custom bucket and return the updated set. */
+export function addBucket(key: string, bucket: Bucket): Bucket[] {
+  const buckets = getBuckets(key);
+  buckets.push(bucket);
+  return buckets;
 }
