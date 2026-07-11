@@ -37,6 +37,10 @@ yarn-error.log*
 # local tooling state
 .claude/
 
+# local-only spec docs (kept out of the public repo)
+docs/inbox-concierge-build-plan.md
+docs/inbox-concierge-classifier-prompt.md
+
 # vercel
 .vercel
 
