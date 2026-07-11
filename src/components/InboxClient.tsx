@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { DEFAULT_BUCKETS, type Bucket } from "@/lib/buckets";
 import type { Thread, Classification } from "@/lib/types";
 import type { PipelineStats } from "@/lib/pipeline";
@@ -32,9 +33,10 @@ export function InboxClient() {
   const [modalOpen, setModalOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
 
-  // Run the pipeline over already-cached threads (no Gmail re-fetch).
-  const classify = useCallback(async () => {
-    const cRes = await fetch("/api/classify");
+  // Fetch classifications; serves the server cache unless `rerun` forces a
+  // fresh pipeline run (after a Gmail refresh or a new bucket).
+  const classify = useCallback(async (rerun = false) => {
+    const cRes = await fetch(`/api/classify${rerun ? "?rerun=1" : ""}`);
     const cData: ClassifyResponse = await cRes.json();
     if (!cRes.ok) throw new Error(cData.error ?? "Failed to classify");
     setClassifications(cData.classifications);
@@ -50,7 +52,7 @@ export function InboxClient() {
         const tData: ThreadsResponse = await tRes.json();
         if (!tRes.ok) throw new Error(tData.error ?? "Failed to load threads");
         setThreads(tData.threads);
-        await classify();
+        await classify(refresh);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong");
         setState("error");
@@ -84,7 +86,7 @@ export function InboxClient() {
     setBuckets(updated);
     setModalOpen(false);
     setState("loading");
-    classify().catch((e) => {
+    classify(true).catch((e) => {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setState("error");
     });
@@ -114,6 +116,12 @@ export function InboxClient() {
 
       {state === "error" ? (
         <ErrorState message={error} onRetry={retry} />
+      ) : state === "ready" && threads.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <p className="text-sm text-zinc-500">
+            No emails found in this account.
+          </p>
+        </div>
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4">
           {state === "loading"
@@ -169,8 +177,8 @@ function Toolbar({
   onTogglePanel: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2.5">
-      <p className="text-sm text-zinc-500">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 py-2.5">
+      <p className="min-w-0 truncate text-sm text-zinc-500">
         {state === "loading" && "Classifying your inbox…"}
         {state === "ready" &&
           stats &&
@@ -234,16 +242,26 @@ function ErrorState({
   message: string;
   onRetry: () => void;
 }) {
+  const needsAuth = /sign in|authenticat/i.test(message);
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <p className="text-sm text-zinc-600">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-      >
-        Try again
-      </button>
+      {needsAuth ? (
+        <Link
+          href="/"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+        >
+          Go to sign in
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+        >
+          Try again
+        </button>
+      )}
     </div>
   );
 }

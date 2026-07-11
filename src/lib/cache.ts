@@ -1,4 +1,5 @@
 import type { Thread, Classification } from "./types";
+import type { PipelineStats } from "./pipeline";
 import { DEFAULT_BUCKETS, type Bucket } from "./buckets";
 
 /**
@@ -13,6 +14,7 @@ export interface SessionData {
   threads: Thread[];
   buckets: Bucket[];
   classifications: Classification[];
+  stats?: PipelineStats;
 }
 
 declare global {
@@ -46,14 +48,20 @@ export function cacheThreads(key: string, threads: Thread[]): void {
 export function cacheClassifications(
   key: string,
   classifications: Classification[],
+  stats: PipelineStats,
 ): void {
-  ensure(key).classifications = classifications;
+  const data = ensure(key);
+  data.classifications = classifications;
+  data.stats = stats;
 }
 
-export function getCachedClassifications(
+/** Cached classifications + stats for the session, if a run has completed. */
+export function getCachedResult(
   key: string,
-): Classification[] | undefined {
-  return store.get(key)?.classifications;
+): { classifications: Classification[]; stats: PipelineStats } | undefined {
+  const data = store.get(key);
+  if (!data || data.classifications.length === 0 || !data.stats) return undefined;
+  return { classifications: data.classifications, stats: data.stats };
 }
 
 /** Current bucket set for the session, seeded from defaults on first use. */

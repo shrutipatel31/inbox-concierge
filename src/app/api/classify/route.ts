@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getCachedThreads, getBuckets, cacheClassifications } from "@/lib/cache";
+import {
+  getCachedThreads,
+  getBuckets,
+  getCachedResult,
+  cacheClassifications,
+} from "@/lib/cache";
 import { classifyThreads } from "@/lib/pipeline";
 
 /**
  * GET /api/classify
- * Runs the full classification pipeline over all cached threads (batch →
- * concurrency-capped → backoff → confidence escalation), caches the result,
- * and returns the classifications plus pipeline stats.
+ * Returns cached classifications when available; runs the full pipeline (batch
+ * → concurrency-capped → backoff → confidence escalation) on a cache miss or
+ * when ?rerun=1 is passed (used after a Gmail refresh or a new bucket).
  */
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+  const key = session.user.email;
 
-  const threads = getCachedThreads(session.user.email);
+  const threads = getCachedThreads(key);
   if (!threads || threads.length === 0) {
     return NextResponse.json(
       { error: "No cached threads. Load /api/threads first." },
@@ -23,10 +29,19 @@ export async function GET() {
     );
   }
 
+  const rerun = new URL(request.url).searchParams.get("rerun") === "1";
+  const buckets = getBuckets(key);
+
+  if (!rerun) {
+    const cached = getCachedResult(key);
+    if (cached) {
+      return NextResponse.json({ ...cached, buckets, cached: true });
+    }
+  }
+
   try {
-    const buckets = getBuckets(session.user.email);
     const { classifications, stats } = await classifyThreads(threads, buckets);
-    cacheClassifications(session.user.email, classifications);
+    cacheClassifications(key, classifications, stats);
     return NextResponse.json({ stats, classifications, buckets });
   } catch (err) {
     const message =
