@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import { InboxClient } from "@/components/InboxClient";
 
 export default async function InboxPage() {
   const session = await auth();
@@ -31,18 +32,7 @@ export default async function InboxPage() {
         </form>
       </header>
 
-      <section className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
-        <p className="text-sm text-zinc-500">
-          Bucketed inbox UI arrives in a later milestone.
-        </p>
-        {/* M2 verification: raw threads JSON straight from the API route. */}
-        <a
-          href="/api/threads"
-          className="text-sm font-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-900"
-        >
-          View raw threads JSON →
-        </a>
-      </section>
+      <InboxClient />
     </main>
   );
 }

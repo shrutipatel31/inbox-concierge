@@ -8,7 +8,7 @@ import { getCachedThreads, cacheThreads } from "@/lib/cache";
  * Returns the last ~200 Gmail threads for the signed-in user. Serves from the
  * per-session cache when present; otherwise fetches from Gmail and caches.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.email || !session.accessToken) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -21,8 +21,10 @@ export async function GET() {
   }
   const key = session.user.email;
 
+  // ?refresh=1 bypasses the cache to pull fresh mail from Gmail.
+  const force = new URL(request.url).searchParams.get("refresh") === "1";
   const cached = getCachedThreads(key);
-  if (cached) {
+  if (cached && !force) {
     return NextResponse.json({ threads: cached, cached: true });
   }
 
