@@ -1,12 +1,14 @@
-import type { Thread } from "@/lib/types";
+import type { Thread, Classification } from "@/lib/types";
 import { EmailCard } from "./EmailCard";
 
 export function BucketColumn({
   name,
   threads,
+  classById,
 }: {
   name: string;
   threads: Thread[];
+  classById: Map<string, Classification>;
 }) {
   return (
     <section className="flex w-80 shrink-0 flex-col rounded-xl bg-zinc-100/70">
@@ -20,7 +22,13 @@ export function BucketColumn({
         {threads.length === 0 ? (
           <p className="px-1 py-6 text-center text-xs text-zinc-400">Empty</p>
         ) : (
-          threads.map((t) => <EmailCard key={t.id} thread={t} />)
+          threads.map((t) => (
+            <EmailCard
+              key={t.id}
+              thread={t}
+              classification={classById.get(t.id)}
+            />
+          ))
         )}
       </div>
     </section>

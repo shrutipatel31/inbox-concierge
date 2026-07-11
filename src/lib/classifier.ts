@@ -80,6 +80,8 @@ export interface BatchResult {
   classifications: Classification[];
   // Tokens served from Gemini's implicit prefix cache on this call (0 if none).
   cachedTokens: number;
+  // Total tokens billed for this call (prompt + output).
+  totalTokens: number;
 }
 
 /**
@@ -93,7 +95,8 @@ export async function classifyBatch(
   buckets: Bucket[],
   model: string = DEFAULT_MODEL,
 ): Promise<BatchResult> {
-  if (threads.length === 0) return { classifications: [], cachedTokens: 0 };
+  if (threads.length === 0)
+    return { classifications: [], cachedTokens: 0, totalTokens: 0 };
   const names = buckets.map((b) => b.name);
   const ai = getClient();
 
@@ -127,6 +130,7 @@ export async function classifyBatch(
   return {
     classifications: parseClassifications(response.text, names),
     cachedTokens: response.usageMetadata?.cachedContentTokenCount ?? 0,
+    totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
   };
 }
 

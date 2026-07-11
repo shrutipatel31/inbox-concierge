@@ -6,6 +6,7 @@ import type { Thread, Classification } from "@/lib/types";
 import type { PipelineStats } from "@/lib/pipeline";
 import { BucketColumn } from "./BucketColumn";
 import { AddBucketModal } from "./AddBucketModal";
+import { PipelinePanel } from "./PipelinePanel";
 
 type LoadState = "loading" | "ready" | "error";
 const UNCLASSIFIED = "Unclassified";
@@ -29,6 +30,7 @@ export function InboxClient() {
   const [stats, setStats] = useState<PipelineStats | null>(null);
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   // Run the pipeline over already-cached threads (no Gmail re-fetch).
   const classify = useCallback(async () => {
@@ -89,10 +91,10 @@ export function InboxClient() {
   };
 
   // Group threads by their classified bucket.
-  const bucketOf = new Map(classifications.map((c) => [c.threadId, c.bucket]));
+  const classById = new Map(classifications.map((c) => [c.threadId, c]));
   const grouped = new Map<string, Thread[]>();
   for (const t of threads) {
-    const bucket = bucketOf.get(t.id) ?? UNCLASSIFIED;
+    const bucket = classById.get(t.id)?.bucket ?? UNCLASSIFIED;
     const list = grouped.get(bucket) ?? [];
     list.push(t);
     grouped.set(bucket, list);
@@ -107,6 +109,7 @@ export function InboxClient() {
         stats={stats}
         onRefresh={refresh}
         onAddBucket={() => setModalOpen(true)}
+        onTogglePanel={() => setPanelOpen((o) => !o)}
       />
 
       {state === "error" ? (
@@ -121,6 +124,7 @@ export function InboxClient() {
                     key={b.name}
                     name={b.name}
                     threads={grouped.get(b.name) ?? []}
+                    classById={classById}
                   />
                 )),
                 unclassified.length > 0 && (
@@ -128,6 +132,7 @@ export function InboxClient() {
                     key={UNCLASSIFIED}
                     name={UNCLASSIFIED}
                     threads={unclassified}
+                    classById={classById}
                   />
                 ),
               ]}
@@ -140,6 +145,10 @@ export function InboxClient() {
           onAdded={onBucketAdded}
         />
       )}
+
+      {panelOpen && stats && (
+        <PipelinePanel stats={stats} onClose={() => setPanelOpen(false)} />
+      )}
     </div>
   );
 }
@@ -150,12 +159,14 @@ function Toolbar({
   stats,
   onRefresh,
   onAddBucket,
+  onTogglePanel,
 }: {
   state: LoadState;
   count: number;
   stats: PipelineStats | null;
   onRefresh: () => void;
   onAddBucket: () => void;
+  onTogglePanel: () => void;
 }) {
   return (
     <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2.5">
@@ -169,6 +180,14 @@ function Toolbar({
         {state === "error" && "Couldn't load your inbox"}
       </p>
       <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onTogglePanel}
+          disabled={state !== "ready" || !stats}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50"
+        >
+          Pipeline
+        </button>
         <button
           type="button"
           onClick={onAddBucket}

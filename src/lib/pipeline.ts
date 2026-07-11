@@ -22,6 +22,7 @@ export interface PipelineStats {
   retries: number;
   failedThreads: number;
   cachedTokens: number;
+  totalTokens: number;
   durationMs: number;
 }
 
@@ -56,6 +57,7 @@ export async function classifyThreads(
     retries: 0,
     failedThreads: 0,
     cachedTokens: 0,
+    totalTokens: 0,
     durationMs: 0,
   };
 
@@ -78,6 +80,7 @@ export async function classifyThreads(
         );
         stats.firstPassCalls++;
         stats.cachedTokens += res.cachedTokens;
+        stats.totalTokens += res.totalTokens;
         return res.classifications;
       } catch {
         // Exhausted retries → don't sink the whole run; mark these Unclassified.
@@ -117,6 +120,7 @@ export async function classifyThreads(
           );
           stats.escalationCalls++;
           stats.cachedTokens += res.cachedTokens;
+          stats.totalTokens += res.totalTokens;
           return res.classifications;
         } catch {
           return []; // escalation failed → keep the first-pass result
