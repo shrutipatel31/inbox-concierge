@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getCachedThreads } from "@/lib/cache";
-import { classifyBatch } from "@/lib/classifier";
+import { getCachedThreads, cacheClassifications } from "@/lib/cache";
+import { classifyThreads } from "@/lib/pipeline";
 import { DEFAULT_BUCKETS } from "@/lib/buckets";
 
 /**
- * GET /api/classify  (M3 v0)
- * Classifies the first ~20 cached threads in a single Gemini batch and returns
- * the raw classifications. The full pipeline (all 200, batching, concurrency,
- * backoff, escalation) lands in M4.
+ * GET /api/classify
+ * Runs the full classification pipeline over all cached threads (batch →
+ * concurrency-capped → backoff → confidence escalation), caches the result,
+ * and returns the classifications plus pipeline stats.
  */
 export async function GET() {
   const session = await auth();
@@ -25,9 +25,12 @@ export async function GET() {
   }
 
   try {
-    const batch = threads.slice(0, 20);
-    const classifications = await classifyBatch(batch, DEFAULT_BUCKETS);
-    return NextResponse.json({ count: classifications.length, classifications });
+    const { classifications, stats } = await classifyThreads(
+      threads,
+      DEFAULT_BUCKETS,
+    );
+    cacheClassifications(session.user.email, DEFAULT_BUCKETS, classifications);
+    return NextResponse.json({ stats, classifications });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Classification failed";

@@ -8,9 +8,11 @@ import {
   FEW_SHOT_OUTPUT,
 } from "./prompt";
 
-// Pinned Flash-Lite model. Pinned (not a "-latest" alias) so classification
-// stays reproducible across runs — pairs with temperature 0 below.
-const MODEL = "gemini-3.1-flash-lite";
+// Pinned models (not "-latest" aliases) so classification stays reproducible
+// across runs — pairs with temperature 0 below. Cheap model by default;
+// escalate the ambiguous tail to the stronger one (see pipeline.ts).
+export const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+export const ESCALATION_MODEL = "gemini-3.5-flash";
 
 let client: GoogleGenAI | null = null;
 function getClient(): GoogleGenAI {
@@ -74,21 +76,29 @@ function parseClassifications(
   });
 }
 
+export interface BatchResult {
+  classifications: Classification[];
+  // Tokens served from Gemini's implicit prefix cache on this call (0 if none).
+  cachedTokens: number;
+}
+
 /**
  * Classify one batch of threads into the given buckets with a single Gemini
  * call. System prompt + few-shot are the cache-eligible constant; only the
- * batch's email list varies.
+ * batch's email list varies. `model` lets the pipeline route the low-confidence
+ * tail to a stronger model.
  */
 export async function classifyBatch(
   threads: Thread[],
   buckets: Bucket[],
-): Promise<Classification[]> {
-  if (threads.length === 0) return [];
+  model: string = DEFAULT_MODEL,
+): Promise<BatchResult> {
+  if (threads.length === 0) return { classifications: [], cachedTokens: 0 };
   const names = buckets.map((b) => b.name);
   const ai = getClient();
 
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model,
     config: {
       systemInstruction: buildSystemPrompt(buckets),
       responseMimeType: "application/json",
@@ -114,5 +124,8 @@ export async function classifyBatch(
     ],
   });
 
-  return parseClassifications(response.text, names);
+  return {
+    classifications: parseClassifications(response.text, names),
+    cachedTokens: response.usageMetadata?.cachedContentTokenCount ?? 0,
+  };
 }
