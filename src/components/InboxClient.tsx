@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DEFAULT_BUCKETS, type Bucket } from "@/lib/buckets";
 import type { Thread, Classification } from "@/lib/types";
-import type { PipelineStats } from "@/lib/pipeline";
 import { BucketColumn } from "./BucketColumn";
 import { AddBucketModal } from "./AddBucketModal";
-import { PipelinePanel } from "./PipelinePanel";
 
 type LoadState = "loading" | "ready" | "error";
 const UNCLASSIFIED = "Unclassified";
@@ -18,7 +16,6 @@ interface ThreadsResponse {
 }
 interface ClassifyResponse {
   classifications: Classification[];
-  stats: PipelineStats;
   buckets: Bucket[];
   error?: string;
 }
@@ -28,10 +25,8 @@ export function InboxClient() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [classifications, setClassifications] = useState<Classification[]>([]);
   const [buckets, setBuckets] = useState<Bucket[]>(DEFAULT_BUCKETS);
-  const [stats, setStats] = useState<PipelineStats | null>(null);
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
 
   // Fetch classifications; serves the server cache unless `rerun` forces a
   // fresh pipeline run (after a Gmail refresh or a new bucket).
@@ -40,7 +35,6 @@ export function InboxClient() {
     const cData: ClassifyResponse = await cRes.json();
     if (!cRes.ok) throw new Error(cData.error ?? "Failed to classify");
     setClassifications(cData.classifications);
-    setStats(cData.stats);
     setBuckets(cData.buckets);
     setState("ready");
   }, []);
@@ -107,11 +101,8 @@ export function InboxClient() {
     <div className="flex flex-1 flex-col">
       <Toolbar
         state={state}
-        count={threads.length}
-        stats={stats}
         onRefresh={refresh}
         onAddBucket={() => setModalOpen(true)}
-        onTogglePanel={() => setPanelOpen((o) => !o)}
       />
 
       {state === "error" ? (
@@ -153,49 +144,26 @@ export function InboxClient() {
           onAdded={onBucketAdded}
         />
       )}
-
-      {panelOpen && stats && (
-        <PipelinePanel stats={stats} onClose={() => setPanelOpen(false)} />
-      )}
     </div>
   );
 }
 
 function Toolbar({
   state,
-  count,
-  stats,
   onRefresh,
   onAddBucket,
-  onTogglePanel,
 }: {
   state: LoadState;
-  count: number;
-  stats: PipelineStats | null;
   onRefresh: () => void;
   onAddBucket: () => void;
-  onTogglePanel: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 py-2.5">
       <p className="min-w-0 truncate text-sm text-zinc-500">
         {state === "loading" && "Classifying your inbox…"}
-        {state === "ready" &&
-          stats &&
-          `${count} emails · ${stats.firstPassCalls + stats.escalationCalls} model calls · ${(
-            stats.durationMs / 1000
-          ).toFixed(1)}s${stats.escalatedThreads > 0 ? ` · ${stats.escalatedThreads} escalated` : ""}`}
         {state === "error" && "Couldn't load your inbox"}
       </p>
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onTogglePanel}
-          disabled={state !== "ready" || !stats}
-          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50"
-        >
-          Pipeline
-        </button>
         <button
           type="button"
           onClick={onAddBucket}

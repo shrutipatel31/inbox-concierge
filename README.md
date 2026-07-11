@@ -18,7 +18,6 @@ Add your own custom buckets and everything re-classifies.
   rate limits, and confidence-based escalation to a stronger model.
 - **Custom buckets** — add a bucket (with an auto-generated description) and re-classify.
 - **"Why here?"** — each card shows the model's reason + confidence.
-- **Pipeline panel** — live stats (model calls vs unbatched, escalations, retries, tokens).
 
 ---
 
