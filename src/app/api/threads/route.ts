@@ -13,6 +13,12 @@ export async function GET() {
   if (!session?.user?.email || !session.accessToken) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+  if (session.error) {
+    return NextResponse.json(
+      { error: "Session expired. Please sign in again." },
+      { status: 401 },
+    );
+  }
   const key = session.user.email;
 
   const cached = getCachedThreads(key);

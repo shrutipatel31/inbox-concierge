@@ -5,3 +5,10 @@ export interface Thread {
   date: string;
   snippet: string;
 }
+
+export interface Classification {
+  threadId: string;
+  bucket: string;
+  confidence: number;
+  reason: string;
+}
